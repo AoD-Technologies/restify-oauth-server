@@ -1,7 +1,7 @@
 {
-  "name": "express-oauth-server",
+  "name": "restify-oauth-server",
   "version": "2.0.0",
-  "description": "OAuth provider for express",
+  "description": "OAuth provider for restify",
   "main": "index.js",
   "scripts": {
     "lint": "jshint .",
@@ -9,32 +9,34 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/seegno/express-oauth-server"
+    "url": "git://github.com/AoD-Technologies/restify-oauth-server"
   },
   "keywords": [
-    "express",
+    "restify",
     "oauth",
     "oauth2"
   ],
   "author": {
-    "name": "Nuno Sousa",
-    "email": "nfs@seegno.com"
+    "name": "Jonathan Horowitz",
+    "email": "jhorowitz@aod-tech.com"
   },
+  "contributors": [
+    {
+      "name": "Nuno Sousa",
+      "email": "nfs@seegno.com"
+    }
+  ],
   "license": "SEE LICENSE IN LICENSE",
   "dependencies": {
-    "bluebird": "^3.0.5",
-    "express": "^4.13.3",
-    "oauth2-server": "3.0.0"
+    "bluebird": "^3.5.2",
+    "oauth2-server": "^3.0.1",
+    "restify": "^7.2.1"
   },
   "devDependencies": {
-    "body-parser": "^1.14.1",
-    "jshint": "^2.8.0",
-    "mocha": "^2.3.3",
-    "should": "^7.1.0",
-    "sinon": "^1.14.1",
-    "supertest": "^0.15.0"
-  },
-  "engines": {
-    "node": ">=0.11"
+    "jshint": "^2.9.6",
+    "mocha": "^5.2.0",
+    "should": "^13.2.3",
+    "sinon": "^6.3.5",
+    "supertest": "^3.3.0"
   }
 }

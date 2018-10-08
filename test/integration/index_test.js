@@ -4,33 +4,43 @@
  * Module dependencies.
  */
 
-var ExpressOAuthServer = require('../../');
+var RestifyOAuthServer = require('../../');
 var InvalidArgumentError = require('oauth2-server/lib/errors/invalid-argument-error');
 var NodeOAuthServer = require('oauth2-server');
-var bodyparser = require('body-parser');
-var express = require('express');
+var restify = require('restify');
 var request = require('supertest');
 var should = require('should');
 var sinon = require('sinon');
 
 /**
- * Test `ExpressOAuthServer`.
+ * Test `RestifyOAuthServer`.
  */
 
-describe('ExpressOAuthServer', function() {
+describe('RestifyOAuthServer', function() {
   var app;
 
   beforeEach(function() {
-    app = express();
+    app = restify.createServer();
 
-    app.use(bodyparser.json());
-    app.use(bodyparser.urlencoded({ extended: false }));
+    app.use(restify.plugins.queryParser());
+    app.use(restify.plugins.bodyParser());
+
+    app.get('/', function(req, res, next) {
+        res.json(200, {success: true});
+    });
+    app.post('/', function(req, res, next) {
+        next(false);
+    });
+  });
+  
+  afterEach(function() {
+    app.close();
   });
 
   describe('constructor()', function() {
     it('should throw an error if `model` is missing', function() {
       try {
-        new ExpressOAuthServer({});
+        new RestifyOAuthServer({});
 
         should.fail();
       } catch (e) {
@@ -40,7 +50,7 @@ describe('ExpressOAuthServer', function() {
     });
 
     it('should set the `server`', function() {
-      var oauth = new ExpressOAuthServer({ model: {} });
+      var oauth = new RestifyOAuthServer({ model: {} });
 
       oauth.server.should.be.an.instanceOf(NodeOAuthServer);
     });
@@ -48,7 +58,7 @@ describe('ExpressOAuthServer', function() {
 
   describe('authenticate()', function() {
     it('should return an error if `model` is empty', function(done) {
-      var oauth = new ExpressOAuthServer({ model: {} });
+      var oauth = new RestifyOAuthServer({ model: {} });
 
       app.use(oauth.authenticate());
 
@@ -68,15 +78,9 @@ describe('ExpressOAuthServer', function() {
           return token;
         }
       };
-      var oauth = new ExpressOAuthServer({ model: model });
+      var oauth = new RestifyOAuthServer({ model: model });
 
       app.use(oauth.authenticate());
-
-      app.use(function(req, res, next) {
-        res.send();
-
-        next();
-      });
 
       request(app.listen())
         .get('/')
@@ -94,13 +98,12 @@ describe('ExpressOAuthServer', function() {
           return token;
         }
       };
-      var oauth = new ExpressOAuthServer({ model: model });
+      var oauth = new RestifyOAuthServer({ model: model });
 
       app.use(oauth.authenticate());
       
       var spy = sinon.spy(function(req, res, next) {
-        res.locals.oauth.token.should.equal(token);
-        res.send(token);
+        req.authorization.oauth.token.should.equal(token);
         next();
       });
       app.use(spy);
@@ -108,7 +111,7 @@ describe('ExpressOAuthServer', function() {
       request(app.listen())
         .get('/')
         .set('Authorization', 'Bearer foobar')
-        .expect(200, function(err, res){
+        .expect(200, function(err){
             spy.called.should.be.True();
             done(err);
         });
@@ -132,21 +135,21 @@ describe('ExpressOAuthServer', function() {
           return code;
         }
       };
-      var oauth = new ExpressOAuthServer({ model: model, continueMiddleware: true });
+      var oauth = new RestifyOAuthServer({ model: model, continueMiddleware: true });
 
       app.use(oauth.authorize());
 
       var spy = sinon.spy(function(req, res, next) {
-        res.locals.oauth.code.should.equal(code);
-        next();
+        req.authorization.oauth.code.should.equal(code);
+        return next();
       });
       app.use(spy);
 
       request(app.listen())
         .post('/?state=foobiz')
         .set('Authorization', 'Bearer foobar')
-        .send({ client_id: 12345, response_type: 'code' })
-        .expect(302, function(err, res){
+        .send('client_id=12345&response_type=code')
+        .expect(302, function(err){
             spy.called.should.be.True();
             done(err);
         });
@@ -164,14 +167,14 @@ describe('ExpressOAuthServer', function() {
           return {};
         }
       };
-      var oauth = new ExpressOAuthServer({ model: model });
+      var oauth = new RestifyOAuthServer({ model: model });
 
       app.use(oauth.authorize());
 
       request(app.listen())
         .post('/?state=foobiz')
         .set('Authorization', 'Bearer foobar')
-        .send({ client_id: 12345 })
+        .send('client_id=12345')
         .expect(400, function(err, res) {
           res.body.error.should.eql('invalid_request');
           res.body.error_description.should.eql('Missing parameter: `response_type`');
@@ -191,20 +194,20 @@ describe('ExpressOAuthServer', function() {
           return { authorizationCode: 123 };
         }
       };
-      var oauth = new ExpressOAuthServer({ model: model });
+      var oauth = new RestifyOAuthServer({ model: model });
 
       app.use(oauth.authorize());
 
       request(app.listen())
         .post('/?state=foobiz')
         .set('Authorization', 'Bearer foobar')
-        .send({ client_id: 12345, response_type: 'code' })
+        .send('client_id=12345&response_type=code')
         .expect('Location', 'http://example.com/?code=123&state=foobiz')
         .end(done);
     });
 
     it('should return an error if `model` is empty', function(done) {
-      var oauth = new ExpressOAuthServer({ model: {} });
+      var oauth = new RestifyOAuthServer({ model: {} });
 
       app.use(oauth.authorize());
 
@@ -229,13 +232,13 @@ describe('ExpressOAuthServer', function() {
           return token;
         }
       };
-      var oauth = new ExpressOAuthServer({ model: model, continueMiddleware: true });
+      var oauth = new RestifyOAuthServer({ model: model, continueMiddleware: true });
 
       app.use(oauth.token());
       var spy = sinon.spy(function(req, res, next) {
-        res.locals.oauth.token.should.equal(token);
+        req.authorization.oauth.token.should.equal(token);
 
-        next();
+        return next();
       });
       app.use(spy);
 
@@ -243,7 +246,7 @@ describe('ExpressOAuthServer', function() {
         .post('/')
         .send('client_id=foo&client_secret=bar&grant_type=password&username=qux&password=biz')
         .expect({ access_token: 'foobar', token_type: 'Bearer' })
-        .expect(200, function(err, res){
+        .expect(200, function(err){
           spy.called.should.be.True();
           done(err);
         });
@@ -261,8 +264,8 @@ describe('ExpressOAuthServer', function() {
           return { accessToken: 'foobar', client: {}, user: {} };
         }
       };
-      var spy = sinon.spy();
-      var oauth = new ExpressOAuthServer({ model: model, continueMiddleware: true });
+      sinon.spy();
+      var oauth = new RestifyOAuthServer({ model: model, continueMiddleware: true });
 
       app.use(oauth.token());
       request(app.listen())
@@ -284,7 +287,7 @@ describe('ExpressOAuthServer', function() {
           return { accessToken: 'foobar', client: {}, refreshToken: 'foobiz', user: {} };
         }
       };
-      var oauth = new ExpressOAuthServer({ model: model });
+      var oauth = new RestifyOAuthServer({ model: model });
 
       app.use(oauth.token());
 
@@ -296,7 +299,7 @@ describe('ExpressOAuthServer', function() {
     });
 
     it('should return an error if `model` is empty', function(done) {
-      var oauth = new ExpressOAuthServer({ model: {} });
+      var oauth = new RestifyOAuthServer({ model: {} });
 
       app.use(oauth.token());
 

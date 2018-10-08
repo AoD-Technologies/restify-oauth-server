@@ -15,7 +15,7 @@ var UnauthorizedRequestError = require('oauth2-server/lib/errors/unauthorized-re
  * Constructor.
  */
 
-function ExpressOAuthServer(options) {
+function RestifyOAuthServer(options) {
   options = options || {};
 
   if (!options.model) {
@@ -39,19 +39,22 @@ function ExpressOAuthServer(options) {
  * (See: https://tools.ietf.org/html/rfc6749#section-7)
  */
 
-ExpressOAuthServer.prototype.authenticate = function(options) {
+RestifyOAuthServer.prototype.authenticate = function(options) {
   var that = this;
 
   return function(req, res, next) {
     var request = new Request(req);
     var response = new Response(res);
+
+    req.authorization = {};
+
     return Promise.bind(that)
       .then(function() {
         return this.server.authenticate(request, response, options);
       })
       .tap(function(token) {
-        res.locals.oauth = { token: token };
-        next();
+        req.authorization.oauth = { token: token };
+        return next();
       })
       .catch(function(e) {
         return handleError.call(this, e, req, res, null, next);
@@ -67,25 +70,27 @@ ExpressOAuthServer.prototype.authenticate = function(options) {
  * (See: https://tools.ietf.org/html/rfc6749#section-3.1)
  */
 
-ExpressOAuthServer.prototype.authorize = function(options) {
+RestifyOAuthServer.prototype.authorize = function(options) {
   var that = this;
 
   return function(req, res, next) {
     var request = new Request(req);
     var response = new Response(res);
 
+    req.authorization = {};
+
     return Promise.bind(that)
       .then(function() {
         return this.server.authorize(request, response, options);
       })
       .tap(function(code) {
-        res.locals.oauth = { code: code };
+        req.authorization.oauth = { code: code };
         if (this.continueMiddleware) {
           next();
         }
       })
       .then(function() {
-        return handleResponse.call(this, req, res, response);
+        return handleResponse.call(this, req, res, response, next);
       })
       .catch(function(e) {
         return handleError.call(this, e, req, res, response, next);
@@ -101,25 +106,27 @@ ExpressOAuthServer.prototype.authorize = function(options) {
  * (See: https://tools.ietf.org/html/rfc6749#section-3.2)
  */
 
-ExpressOAuthServer.prototype.token = function(options) {
+RestifyOAuthServer.prototype.token = function(options) {
   var that = this;
 
   return function(req, res, next) {
     var request = new Request(req);
     var response = new Response(res);
 
+    req.authorization = {};
+
     return Promise.bind(that)
       .then(function() {
         return this.server.token(request, response, options);
       })
       .tap(function(token) {
-        res.locals.oauth = { token: token };
+        req.authorization.oauth = { token: token };
         if (this.continueMiddleware) {
           next();
         }
       })
       .then(function() {
-        return handleResponse.call(this, req, res, response);
+        return handleResponse.call(this, req, res, response, next);
       })
       .catch(function(e) {
         return handleError.call(this, e, req, res, response, next);
@@ -130,16 +137,17 @@ ExpressOAuthServer.prototype.token = function(options) {
 /**
  * Handle response.
  */
-var handleResponse = function(req, res, response) {
+var handleResponse = function(req, res, response, next) {
 
   if (response.status === 302) {
     var location = response.headers.location;
     delete response.headers.location;
     res.set(response.headers);
-    res.redirect(location);
+    res.redirect(location, next);
   } else {
     res.set(response.headers);
-    res.status(response.status).send(response.body);
+    res.status(response.status);
+    res.send(response.body);
   }
 };
 
@@ -159,7 +167,7 @@ var handleError = function(e, req, res, response, next) {
     res.status(e.code);
 
     if (e instanceof UnauthorizedRequestError) {
-      return res.send();
+      return next(false);
     }
 
     res.send({ error: e.name, error_description: e.message });
@@ -170,4 +178,4 @@ var handleError = function(e, req, res, response, next) {
  * Export constructor.
  */
 
-module.exports = ExpressOAuthServer;
+module.exports = RestifyOAuthServer;
